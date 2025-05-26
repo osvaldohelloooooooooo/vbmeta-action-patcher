@@ -1,0 +1,36 @@
+name: Patch vbmeta
+
+on:
+  workflow_dispatch:
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y python3 python3-pip
+        pip install requests
+
+    - name: Download avbtool
+      run: |
+        curl -O https://android.googlesource.com/platform/external/avb/+archive/master/avbtool
+        chmod +x avbtool
+
+    - name: Patch vbmeta
+      run: |
+        ./avbtool make_vbmeta_image \
+          --output vbmeta_patched.img \
+          --include_descriptors_from_image vbmeta.img \
+          --disable_verification \
+          --disable_verity
+
+    - name: Upload patched vbmeta
+      uses: actions/upload-artifact@v3
+      with:
+        name: vbmeta_patched
+        path: vbmeta_patched.img
