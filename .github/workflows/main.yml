@@ -1,35 +1,61 @@
-name: Patch vbmeta
+name: Patch VBMeta (ARM Emulation)
 
 on:
   workflow_dispatch:
+    inputs:
+      ARCHITECTURE:
+        description: 'Architecture'
+        required: true
+        default: 'arm64-v8a'
+        type: choice
+        options:
+          - x86_64
+          - arm64-v8a
+
+permissions:
+  contents: write
 
 jobs:
-  patch:
+  build:
+    if: github.event.repository.owner.id == github.event.sender.id
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v2
+      - name: Check Out
+        uses: actions/checkout@v3.1.0
 
-      - name: Install Python and dependencies
+      - name: Show OS Info
+        run: uname -a
+
+      - name: Install QEMU for ARM64
         run: |
           sudo apt update
-          sudo apt install -y python3 python3-pip
+          sudo apt install -y qemu-user
 
-      - name: Download avbtool from AOSP
+      - name: Confirm file type
         run: |
-          curl -o avbtool https://raw.githubusercontent.com/android/bootable/libavb/master/avbtool
-          chmod +x avbtool
+          file ${{ github.event.inputs.ARCHITECTURE }}/vbmeta-disable-verification
 
-      - name: Patch vbmeta
+      - name: Emulate and Run Binary with QEMU
+        if: ${{ github.event.inputs.ARCHITECTURE == 'arm64-v8a' }}
         run: |
-          ./avbtool make_vbmeta_image \
-            --output vbmeta_patched.img \
-            --include_descriptors_from_image vbmeta.img \
-            --disable_verification \
-            --disable_verity
+          chmod +x ${{ github.event.inputs.ARCHITECTURE }}/vbmeta-disable-verification
+          qemu-aarch64 -L /usr/aarch64-linux-gnu \
+            ./${{ github.event.inputs.ARCHITECTURE }}/vbmeta-disable-verification vbmeta.img
 
-      - name: Upload patched vbmeta
-        uses: actions/upload-artifact@v1
+      - name: Run natively (x86_64 only)
+        if: ${{ github.event.inputs.ARCHITECTURE == 'x86_64' }}
+        run: |
+          chmod +x x86_64/vbmeta-disable-verification
+          ./x86_64/vbmeta-disable-verification vbmeta.img
+
+      - name: Upload to Release
+        uses: ncipollo/release-action@v1.12.0
         with:
-          name: vbmeta_patched
-          path: vbmeta_patched.img
+          artifacts: vbmeta.img
+          Name: Patched VBMeta
+          draft: false
+          prerelease: true
+          tag: ${{ github.run_id }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          body: |
+            Archivo vbmeta.img parchado con binario ${{ github.event.inputs.ARCHITECTURE }}
