@@ -29,7 +29,7 @@ jobs:
             --disable_verity
 
       - name: Upload patched vbmeta
-        uses: actions/upload-artifact
+        uses: actions/upload-artifact@v1
         with:
           name: vbmeta_patched
           path: vbmeta_patched.img
